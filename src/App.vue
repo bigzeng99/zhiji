@@ -1,0 +1,30 @@
+<template>
+  <div class="app-shell">
+    <router-view v-slot="{ Component }">
+      <transition name="fade" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
+    <TabBar />
+  </div>
+</template>
+
+<script setup lang="ts">
+import TabBar from './components/TabBar.vue'
+</script>
+
+<style scoped>
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
