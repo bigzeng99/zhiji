@@ -132,10 +132,11 @@ async function fetchAllPoints() {
   const rows = []
   let offset = 0
   while (true) {
-    const url = `${SUPABASE_URL}/points?select=id,title,question,answer&limit=1000&offset=${offset}`
-    const res = await fetch(url, {
-      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` }
-    })
+    // apikey 放在 URL query string 而不是自定义 header，
+    // 避免浏览器为跨域请求发出 CORS 预检（OPTIONS），
+    // 规避某些网络环境对这类请求的拦截。
+    const url = `${SUPABASE_URL}/points?select=id,title,question,answer&limit=1000&offset=${offset}&apikey=${SERVICE_KEY}`
+    const res = await fetch(url)
     if (!res.ok) throw new Error(`拉取失败: ${res.status} ${await res.text()}`)
     const data = await res.json()
     if (!data.length) break
