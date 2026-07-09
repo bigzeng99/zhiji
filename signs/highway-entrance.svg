@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect x="10" y="30" width="180" height="140" rx="10" fill="#0B7D40" stroke="#065E30" stroke-width="4"/>
+  <text x="100" y="95" text-anchor="middle" font-size="32" font-weight="bold" font-family="Arial" fill="white">入口</text>
+  <polygon points="100,115 80,140 120,140" fill="white"/>
+</svg>
