@@ -6,6 +6,7 @@
       :to="tab.path"
       class="tab-item"
       :class="{ active: $route.path === tab.path }"
+      @click.native="onTabClick(tab.path)"
     >
       <div class="tab-icon-wrap">
         <span class="tab-icon" v-html="tab.icon"></span>
@@ -18,21 +19,35 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { store } from '../store'
 
+const route = useRoute()
+
 onMounted(() => {
-  store.loadOverview()
+  if (!store._overviewLoadedAt) store.loadOverview()
 })
 
+function onTabClick(path: string) {
+  if (route.path === path) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (path === '/feed') {
+      store.feedNeedsRefresh = true
+    }
+  }
+}
+
 const badgeCount = computed(() => {
-  if (store.reviewQueue.length > 0) return store.reviewQueue.length
-  const due = store.overview.due_today
-  if (due === 0) return 0
-  if (store.dailyLimit > 0) return Math.min(store.dailyLimit, due)
-  return due
+  if (store.sessionDone) return 0
+  return store.reviewQueue.length
 })
 
 const tabs = [
+  {
+    path: '/feed',
+    label: '知识流',
+    icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/></svg>`
+  },
   {
     path: '/review',
     label: '复习',
@@ -42,11 +57,6 @@ const tabs = [
     path: '/library',
     label: '知识库',
     icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>`
-  },
-  {
-    path: '/stats',
-    label: '统计',
-    icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>`
   },
   {
     path: '/profile',
@@ -67,9 +77,11 @@ const tabs = [
   display: flex;
   justify-content: space-around;
   align-items: center;
-  background: var(--white);
-  border-top: 1px solid var(--gray-200);
-  padding: 6px 0 env(safe-area-inset-bottom, 8px);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--border-color);
+  padding: 8px 0 env(safe-area-inset-bottom, 10px);
   z-index: 100;
 }
 
@@ -103,7 +115,7 @@ const tabs = [
   position: absolute;
   top: -6px;
   right: -10px;
-  background: #E74C3C;
+  background: var(--red);
   color: white;
   font-size: 10px;
   font-weight: 600;
@@ -117,6 +129,7 @@ const tabs = [
 }
 
 .tab-label {
+  font-size: 11px;
   font-weight: 500;
 }
 

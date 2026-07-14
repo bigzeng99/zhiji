@@ -23,6 +23,8 @@ export interface Point {
   last_review: string | null
   suspended: number
   favorited: number
+  source_id?: string
+  creator_name?: string
   created_at: string
   updated_at: string
 }
@@ -58,6 +60,9 @@ class ZhijiDB extends Dexie {
       reviews: '++id, point_id, reviewed_at',
       dailyStats: 'date'
     })
+    this.version(2).stores({
+      points: 'id, subject_id, source_id, next_review, suspended, favorited, repetitions, interval, created_at'
+    })
   }
 }
 
@@ -67,45 +72,130 @@ const today = () => new Date().toISOString().slice(0, 10)
 const now = () => new Date().toISOString().slice(0, 19).replace('T', ' ')
 
 export async function initDB() {
-  const count = await db.subjects.count()
-  if (count > 0) return
-
   const seed = await import('./data/seed.json')
   const todayStr = today()
   const nowStr = now()
 
-  await db.transaction('rw', db.subjects, db.points, async () => {
-    await db.subjects.bulkAdd(seed.subjects as Subject[])
-    const points = (seed.points as any[]).map(p => ({
-      ...p,
-      ease_factor: 2.5,
-      interval: 0,
-      repetitions: 0,
-      next_review: todayStr,
-      last_review: null,
-      suspended: 0,
-      favorited: 0,
-      created_at: nowStr,
-      updated_at: nowStr
-    }))
-    await db.points.bulkAdd(points)
+  const existingSubjects = await db.subjects.count()
+  if (existingSubjects === 0) {
+    await db.transaction('rw', db.subjects, db.points, async () => {
+      await db.subjects.bulkAdd(seed.subjects as Subject[])
+      const points = (seed.points as any[]).map(p => ({
+        ...p,
+        ease_factor: 2.5,
+        interval: 0,
+        repetitions: 0,
+        next_review: todayStr,
+        last_review: null,
+        suspended: 0,
+        favorited: 0,
+        created_at: nowStr,
+        updated_at: nowStr
+      }))
+      await db.points.bulkAdd(points)
+    })
+  } else {
+    await db.transaction('rw', db.subjects, db.points, async () => {
+      for (const s of seed.subjects as Subject[]) {
+        const exists = await db.subjects.get(s.id)
+        if (!exists) await db.subjects.add(s)
+      }
+      const existingIds = new Set((await db.points.toArray()).map(p => p.id))
+      const newPoints = (seed.points as any[])
+        .filter(p => !existingIds.has(p.id))
+        .map(p => ({
+          ...p,
+          ease_factor: 2.5, interval: 0, repetitions: 0,
+          next_review: todayStr, last_review: null,
+          suspended: 0, favorited: 0,
+          created_at: nowStr, updated_at: nowStr
+        }))
+      if (newPoints.length > 0) await db.points.bulkAdd(newPoints)
+    })
+  }
+}
+
+export async function exportData() {
+  const points = await db.points.toArray()
+  const reviews = await db.reviews.toArray()
+  const dailyStats = await db.dailyStats.toArray()
+  const data = {
+    version: 1,
+    exported_at: new Date().toISOString(),
+    points: points.map(p => ({
+      id: p.id,
+      ease_factor: p.ease_factor,
+      interval: p.interval,
+      repetitions: p.repetitions,
+      next_review: p.next_review,
+      last_review: p.last_review,
+      suspended: p.suspended,
+      favorited: p.favorited
+    })),
+    reviews,
+    dailyStats
+  }
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `zhiji-backup-${today()}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function importData(file: File) {
+  const text = await file.text()
+  const data = JSON.parse(text)
+  if (!data.version || !data.points) throw new Error('无效的备份文件')
+
+  await db.transaction('rw', db.points, db.reviews, db.dailyStats, async () => {
+    for (const p of data.points) {
+      const existing = await db.points.get(p.id)
+      if (existing) {
+        await db.points.update(p.id, {
+          ease_factor: p.ease_factor,
+          interval: p.interval,
+          repetitions: p.repetitions,
+          next_review: p.next_review,
+          last_review: p.last_review,
+          suspended: p.suspended,
+          favorited: p.favorited
+        })
+      }
+    }
+    if (data.reviews?.length) {
+      await db.reviews.clear()
+      await db.reviews.bulkAdd(data.reviews)
+    }
+    if (data.dailyStats?.length) {
+      await db.dailyStats.clear()
+      await db.dailyStats.bulkAdd(data.dailyStats)
+    }
   })
 }
 
 export const api = {
-  async getSubjects() {
+  async getSubjects(_teamId?: string | null) {
     const subjects = await db.subjects.orderBy('sort_order').toArray()
+    const todayStr = today()
     const result = []
     for (const s of subjects) {
-      const point_count = await db.points.where('subject_id').equals(s.id).count()
-      const learned_count = await db.points.where('subject_id').equals(s.id).filter(p => p.repetitions > 0).count()
-      result.push({ ...s, point_count, learned_count })
+      const pts = await db.points.where('subject_id').equals(s.id).toArray()
+      const point_count = pts.length
+      const learned_count = pts.filter(p => p.repetitions > 0).length
+      const due_count = pts.filter(p => p.next_review <= todayStr && !p.suspended).length
+      result.push({ ...s, point_count, learned_count, due_count })
     }
     return result
   },
 
   async getSubjectPoints(id: string) {
     return db.points.where('subject_id').equals(id).sortBy('created_at')
+  },
+
+  async getAllActivePoints() {
+    return db.points.toArray()
   },
 
   async createPoint(data: { subject_id: string; title: string; category: string; question: string; answer: string }) {
@@ -124,6 +214,7 @@ export const api = {
       last_review: null,
       suspended: 0,
       favorited: 0,
+      creator_name: '我',
       created_at: now(),
       updated_at: now()
     }
@@ -141,6 +232,20 @@ export const api = {
     await db.reviews.where('point_id').equals(id).delete()
     return { ok: true }
   },
+
+  async deleteSubject(id: string) {
+    await db.transaction('rw', db.subjects, db.points, db.reviews, async () => {
+      const points = await db.points.where('subject_id').equals(id).toArray()
+      for (const p of points) {
+        await db.reviews.where('point_id').equals(p.id).delete()
+      }
+      await db.points.where('subject_id').equals(id).delete()
+      await db.subjects.delete(id)
+    })
+    return { ok: true }
+  },
+
+  async deleteTeam(_teamId: string): Promise<any> { throw new Error('请先登录') },
 
   async getReviewQueue(subjects?: string[], limit?: number) {
     const todayStr = today()
@@ -318,6 +423,20 @@ export const api = {
     return result
   },
 
+  async getHeatmap() {
+    const allStats = await db.dailyStats.toArray()
+    const map = new Map(allStats.map(s => [s.date, s.reviewed]))
+    const result = []
+    const year = new Date().getFullYear()
+    const start = new Date(year, 0, 1)
+    const end = new Date(year, 11, 31)
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().slice(0, 10)
+      result.push({ date: dateStr, count: map.get(dateStr) || 0 })
+    }
+    return result
+  },
+
   async getCurve(subject?: string) {
     let pointIds: Set<string> | null = null
     if (subject && subject !== 'all') {
@@ -358,7 +477,8 @@ export const api = {
     const totalPoints = allPoints.length
     const learnedPoints = allPoints.filter(p => p.repetitions > 0).length
 
-    const allDays = await db.dailyStats.where('reviewed').above(0).toArray()
+    const allDaysRaw = await db.dailyStats.toArray()
+    const allDays = allDaysRaw.filter(d => d.reviewed > 0)
     const allDates = allDays.map(d => d.date).sort()
 
     const todayStr = today()
@@ -423,5 +543,114 @@ export const api = {
       avg_review_per_day: avgReview,
       subjects: subjectStats
     }
+  },
+
+  async getFavorites() {
+    const subjectMap = new Map<string, Subject>()
+    for (const s of await db.subjects.toArray()) {
+      subjectMap.set(s.id, s)
+    }
+    const allPts = await db.points.toArray()
+    const points = allPts.filter(p => p.favorited === 1)
+    return points.map(p => {
+      const s = subjectMap.get(p.subject_id)
+      return {
+        ...p,
+        subject_name: s?.name || '',
+        subject_icon: s?.icon || '',
+        subject_color: s?.color || ''
+      }
+    })
+  },
+
+  async getSuspended() {
+    const subjectMap = new Map<string, Subject>()
+    for (const s of await db.subjects.toArray()) {
+      subjectMap.set(s.id, s)
+    }
+    const allPts = await db.points.toArray()
+    const points = allPts.filter(p => p.suspended === 1)
+    return points.map(p => {
+      const s = subjectMap.get(p.subject_id)
+      return {
+        ...p,
+        subject_name: s?.name || '',
+        subject_icon: s?.icon || '',
+        subject_color: s?.color || ''
+      }
+    })
+  },
+
+  async unsuspendPoint(id: string) {
+    await db.points.update(id, { suspended: 0, updated_at: now() })
+    return { ok: true }
+  },
+
+  async getMyUploads() {
+    return []
+  },
+
+  async getRecentActivity(limit = 10) {
+    const reviews = await db.reviews.orderBy('reviewed_at').reverse().limit(limit).toArray()
+    const result = []
+    for (const r of reviews) {
+      const point = await db.points.get(r.point_id)
+      const subject = point ? await db.subjects.get(point.subject_id) : null
+      result.push({
+        title: point?.title || '',
+        subject_name: subject?.name || '',
+        subject_icon: subject?.icon || '',
+        subject_color: subject?.color || '',
+        rating: r.rating,
+        reviewed_at: r.reviewed_at
+      })
+    }
+    return result
+  },
+
+  async getMyTeams() { return [] },
+  async createTeam(_name: string): Promise<any> { throw new Error('请先登录') },
+  async joinTeam(_code: string): Promise<any> { throw new Error('请先登录') },
+  async getTeamMembers(_teamId: string) { return [] },
+  async leaveTeam(_teamId: string): Promise<any> { throw new Error('请先登录') },
+  async updateTeam(_teamId: string, _data: { name: string }): Promise<any> { throw new Error('请先登录') },
+  async createSubject(data: { name: string; icon?: string; color?: string; team_id?: string; is_public?: boolean }) {
+    const subject: Subject = {
+      id: 's_' + crypto.randomUUID().slice(0, 8),
+      name: data.name,
+      icon: data.icon || '📚',
+      color: data.color || '#3B82F6',
+      sort_order: 999
+    }
+    await db.subjects.add(subject)
+    return subject
+  },
+
+  async cloneSubjectToMine(_subjectId: string, _subjectInfo?: any): Promise<any> { throw new Error('本地模式无需克隆') },
+  async clonePointToMine(_pointId: string, _targetSubjectId: string): Promise<any> { throw new Error('本地模式无需克隆') },
+
+  async searchPoints(keyword: string) {
+    if (!keyword.trim()) return []
+    const kw = keyword.toLowerCase()
+    const subjectMap = new Map<string, Subject>()
+    for (const s of await db.subjects.toArray()) {
+      subjectMap.set(s.id, s)
+    }
+    const allPts = await db.points.toArray()
+    const matches = allPts.filter(p =>
+      p.title.toLowerCase().includes(kw) ||
+      p.question.toLowerCase().includes(kw) ||
+      p.answer.toLowerCase().includes(kw) ||
+      (p.category || '').toLowerCase().includes(kw)
+    )
+    return matches.map(p => {
+      const s = subjectMap.get(p.subject_id)
+      return {
+        ...p,
+        subject_name: s?.name || '',
+        subject_icon: s?.icon || '',
+        subject_color: s?.color || ''
+      }
+    })
   }
 }

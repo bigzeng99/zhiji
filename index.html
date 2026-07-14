@@ -2,16 +2,30 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#1B3A5C" />
+    <meta name="description" content="基于艾宾浩斯遗忘曲线的间隔重复记忆工具，支持AI生成知识点、多科目管理、PDF导入" />
+    <meta property="og:title" content="知记 - 知识记忆助手" />
+    <meta property="og:description" content="科学记忆，高效学习。支持间隔重复、AI知识点生成、多人协作知识库" />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#3B82F6" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="preconnect" href="https://joqppofbsptljxdhxcpe.supabase.co" />
+    <link rel="dns-prefetch" href="https://joqppofbsptljxdhxcpe.supabase.co" />
     <title>知记 - 知识记忆助手</title>
+    <script>if(localStorage.getItem('zhiji_theme')==='dark')document.documentElement.setAttribute('data-theme','dark')</script>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="splash" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;height:100dvh;background:#F7F9FC;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif">
+        <div style="font-size:48px;margin-bottom:16px">📖</div>
+        <div style="font-size:20px;font-weight:700;color:#1A2233;margin-bottom:8px">知记</div>
+        <div style="width:32px;height:32px;border:3px solid #E8EDF5;border-top-color:#3B82F6;border-radius:50%;animation:sp .8s linear infinite;margin-top:12px"></div>
+        <style>@keyframes sp{to{transform:rotate(360deg)}}[data-theme=dark] #splash{background:#111827}[data-theme=dark] #splash>div:nth-child(2){color:#EEF2FA}</style>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

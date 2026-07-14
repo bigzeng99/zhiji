@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
-import { api } from './db'
+import { getApi } from './apiSwitch'
+import { auth } from './auth'
 
 export interface ReviewPoint {
   id: string
@@ -20,9 +21,6 @@ export interface ReviewPoint {
   _sessionCount?: number
 }
 
-// 认识：直接移除，不再出现
-// 模糊：最多再出现 2 次（共 3 次）
-// 忘记：最多再出现 4 次（共 5 次）
 const MAX_REPEATS: Record<number, number> = { 2: 1, 1: 3, 0: 5 }
 
 export const store = reactive({
@@ -31,40 +29,108 @@ export const store = reactive({
   currentIndex: 0,
   totalCount: 0,
   completedCount: 0,
+  sessionDone: false,
+  feedNeedsRefresh: false,
   dailyLimit: parseInt(localStorage.getItem('zhiji_daily_limit') || '20'),
+  hiddenSubjects: JSON.parse(localStorage.getItem('zhiji_hidden_subjects') || '[]') as string[],
+  selectedSubjects: JSON.parse(localStorage.getItem('zhiji_selected_subjects') || '[]') as string[],
   overview: { due_today: 0, total_points: 0, learned_points: 0, new_today: 0, reviewed_today: 0 },
   loading: false,
+  _subjectsLoadedAt: 0,
+  _overviewLoadedAt: 0,
+  _teamsLoadedAt: 0,
+  _preloading: null as Promise<void> | null,
+
+  teams: [] as Array<{ id: string; name: string; description: string; invite_code: string; role: string; max_members: number }>,
+  currentTeamId: localStorage.getItem('zhiji_current_team') as string | null,
+
+  get currentTeam() {
+    return this.teams.find((t: any) => t.id === this.currentTeamId) || null
+  },
+
+  async loadTeams() {
+    if (this._teamsLoadedAt && Date.now() - this._teamsLoadedAt < 5000) return
+    this.teams = await getApi().getMyTeams()
+    this._teamsLoadedAt = Date.now()
+    if (this.currentTeamId && !this.teams.find(t => t.id === this.currentTeamId)) {
+      this.currentTeamId = null
+      localStorage.removeItem('zhiji_current_team')
+    }
+  },
+
+  switchSpace(teamId: string | null) {
+    this.currentTeamId = teamId
+    if (teamId) localStorage.setItem('zhiji_current_team', teamId)
+    else localStorage.removeItem('zhiji_current_team')
+  },
 
   setDailyLimit(n: number) {
     this.dailyLimit = n
     localStorage.setItem('zhiji_daily_limit', String(n))
   },
 
+  toggleHiddenSubject(id: string) {
+    const idx = this.hiddenSubjects.indexOf(id)
+    if (idx >= 0) this.hiddenSubjects.splice(idx, 1)
+    else this.hiddenSubjects.push(id)
+    localStorage.setItem('zhiji_hidden_subjects', JSON.stringify(this.hiddenSubjects))
+  },
+
+  saveSelectedSubjects(ids: string[]) {
+    this.selectedSubjects = ids
+    localStorage.setItem('zhiji_selected_subjects', JSON.stringify(ids))
+  },
+
+  isSubjectHidden(id: string) {
+    return this.hiddenSubjects.includes(id)
+  },
+
   async loadSubjects() {
-    this.subjects = await api.getSubjects()
+    if (this._subjectsLoadedAt && Date.now() - this._subjectsLoadedAt < 5000) return
+    this.subjects = await getApi().getSubjects()
+    this._subjectsLoadedAt = Date.now()
   },
 
   async loadOverview() {
-    this.overview = await api.getOverview()
+    if (this._overviewLoadedAt && Date.now() - this._overviewLoadedAt < 5000) return
+    this.overview = await getApi().getOverview()
+    this._overviewLoadedAt = Date.now()
+  },
+
+  preload() {
+    if (this._preloading) return
+    this._preloading = Promise.all([
+      this.loadSubjects().catch(() => {}),
+      this.loadOverview().catch(() => {}),
+      auth.isLoggedIn.value ? this.loadTeams().catch(() => {}) : Promise.resolve()
+    ]).then(() => { this._preloading = null })
   },
 
   async loadReviewQueue(subjectIds?: string[], limit?: number) {
-    const queue = await api.getReviewQueue(subjectIds, limit)
+    let filterIds = subjectIds
+    if (this.hiddenSubjects.length > 0 && !filterIds) {
+      const allSubs = this.subjects.length > 0 ? this.subjects : await getApi().getSubjects()
+      filterIds = allSubs.map((s: any) => s.id).filter((id: string) => !this.hiddenSubjects.includes(id))
+    } else if (filterIds && this.hiddenSubjects.length > 0) {
+      filterIds = filterIds.filter(id => !this.hiddenSubjects.includes(id))
+    }
+    const queue = await getApi().getReviewQueue(filterIds, limit)
     queue.forEach((p: ReviewPoint) => { p._sessionCount = 0 })
     this.reviewQueue = queue
     this.currentIndex = 0
     this.totalCount = queue.length
     this.completedCount = 0
+    this.sessionDone = false
   },
 
-  async submitRating(rating: number) {
+  submitRating(rating: number): boolean {
     const point = this.reviewQueue[this.currentIndex]
     if (!point) return false
 
     const count = (point._sessionCount || 0) + 1
     const maxRepeat = MAX_REPEATS[rating] ?? 1
 
-    await api.submitRating(point.id, rating)
+    getApi().submitRating(point.id, rating).catch(() => {})
     this.reviewQueue.splice(this.currentIndex, 1)
 
     if (count < maxRepeat) {
@@ -82,10 +148,10 @@ export const store = reactive({
     return true
   },
 
-  async suspendPoint() {
+  suspendPoint(): boolean {
     const point = this.reviewQueue[this.currentIndex]
     if (!point) return false
-    await api.suspendPoint(point.id)
+    getApi().suspendPoint(point.id).catch(() => {})
     this.reviewQueue.splice(this.currentIndex, 1)
     this.totalCount--
     if (this.reviewQueue.length === 0) return false
@@ -93,11 +159,11 @@ export const store = reactive({
     return true
   },
 
-  async toggleFavorite() {
+  toggleFavorite() {
     const point = this.reviewQueue[this.currentIndex]
     if (!point) return
-    const res = await api.toggleFavorite(point.id)
-    point.favorited = res.favorited ? 1 : 0
+    point.favorited = point.favorited ? 0 : 1
+    getApi().toggleFavorite(point.id).catch(() => {})
   },
 
   get currentPoint(): ReviewPoint | null {
