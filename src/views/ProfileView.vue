@@ -217,6 +217,20 @@
           </div>
         </div>
         <div class="setting-divider"></div>
+        <div class="setting-item" v-if="isLoggedIn && !editingNickname" @click="startEditNickname">
+          <span>✏️ 改名字</span>
+          <span class="setting-hint">{{ userName }}</span>
+        </div>
+        <div class="setting-item nickname-editing" v-if="isLoggedIn && editingNickname">
+          <span>✏️ 改名字</span>
+          <div class="rename-row">
+            <input v-model="nicknameValue" class="rename-input" maxlength="20" @keyup.enter="saveNickname" />
+            <button class="rename-save" :disabled="savingNickname" @click="saveNickname">{{ savingNickname ? '保存中' : '保存' }}</button>
+            <button class="rename-cancel" @click="editingNickname = false">取消</button>
+          </div>
+        </div>
+        <div v-if="nicknameError" class="setting-note" style="color:var(--red)">{{ nicknameError }}</div>
+        <div class="setting-divider"></div>
         <div class="setting-item">
           <span>每日复习数量</span>
           <div class="limit-control">
@@ -345,9 +359,38 @@ const userAvatar = computed(() => {
 const userName = computed(() => {
   if (!auth.isLoggedIn.value) return '未登录'
   const u = auth.currentUser.value
-  return u?.user_metadata?.full_name || u?.user_metadata?.name || u?.email?.split('@')[0] || '知记学员'
+  return auth.profile.value?.nickname || u?.user_metadata?.full_name || u?.user_metadata?.name || u?.email?.split('@')[0] || '知记学员'
 })
 const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
+
+const editingNickname = ref(false)
+const nicknameValue = ref('')
+const savingNickname = ref(false)
+const nicknameError = ref('')
+
+function startEditNickname() {
+  nicknameValue.value = userName.value
+  nicknameError.value = ''
+  editingNickname.value = true
+}
+
+async function saveNickname() {
+  const name = nicknameValue.value.trim()
+  if (!name) { nicknameError.value = '名字不能为空'; return }
+  savingNickname.value = true
+  nicknameError.value = ''
+  try {
+    await auth.updateProfile({ nickname: name })
+    const { data, error } = await supabase.auth.updateUser({ data: { full_name: name, name } })
+    if (error) throw error
+    if (data.user) auth.currentUser.value = data.user
+    editingNickname.value = false
+  } catch (e: any) {
+    nicknameError.value = e.message || '修改失败'
+  } finally {
+    savingNickname.value = false
+  }
+}
 
 function onAvatarClick() {
   if (!isLoggedIn.value) router.push('/auth')
@@ -830,6 +873,12 @@ onActivated(async () => {
 .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; }
 .setting-item span { font-size: 15px; color: var(--gray-700); }
 .setting-hint { font-size: 13px !important; color: var(--gray-400) !important; }
+.nickname-editing { align-items: center; }
+.rename-row { display: flex; align-items: center; gap: 6px; flex: 1; margin-left: 12px; justify-content: flex-end; }
+.rename-input { flex: 1; max-width: 140px; padding: 6px 10px; border: 1px solid var(--primary); border-radius: 6px; font-size: 14px; outline: none; }
+.rename-save { padding: 6px 12px; font-size: 13px; font-weight: 600; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.rename-save:disabled { opacity: 0.6; }
+.rename-cancel { padding: 6px 12px; font-size: 13px; font-weight: 600; background: var(--gray-100); color: var(--gray-600); border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .setting-divider { height: 1px; background: var(--gray-100); margin: 8px 0; }
 .setting-section-title { font-size: 13px; font-weight: 600; color: var(--gray-400); padding: 8px 0 4px; text-transform: uppercase; letter-spacing: 1px; }
 .setting-note { font-size: 12px; color: var(--gray-400); line-height: 1.6; padding: 12px 0 8px; }
