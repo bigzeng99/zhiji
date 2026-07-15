@@ -520,7 +520,8 @@ async function loadData() {
   const api = getApi()
 
   let allSubs: any[]
-  if (store.subjects.length > 0) {
+  const cacheLooksCloudShaped = store.subjects.length > 0 && store.subjects.every((s: any) => 'owner_id' in s)
+  if (store.subjects.length > 0 && (!isLoggedIn.value || cacheLooksCloudShaped)) {
     allSubs = store.subjects
   } else {
     allSubs = await api.getSubjects()

@@ -10,10 +10,9 @@ const app = createApp(App)
 app.use(router)
 app.mount('#app')
 
-initDB()
-  .then(() => store.preload())
-  .catch(() => {})
-
-auth.init().catch(() => {
+const dbReady = initDB().catch(() => {})
+const authReady = auth.init().catch(() => {
   auth.loading.value = false
 })
+
+Promise.all([dbReady, authReady]).then(() => store.preload())

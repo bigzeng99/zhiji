@@ -366,7 +366,29 @@ async function shareResult() {
   const canvas = shareCanvas.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')!
-  const w = 640, h = 400
+  const w = 640
+  const topH = 100
+
+  const s = sessionStats.value
+  const cards = [
+    { label: '总题数', value: String(s.total), accent: '#3B82F6' },
+    { label: '认识', value: String(s.known), accent: '#10B981' },
+    { label: '模糊', value: String(s.fuzzy), accent: '#F59E0B' },
+    { label: '忘记', value: String(s.forgot), accent: '#EF4444' }
+  ]
+  const cardW = 130, cardH = 100, cardGap = 12
+  const cardY = topH + 24
+
+  const rateY = cardY + cardH + 24
+  const rateH = 72
+
+  const quizPoint = prevStack.length > 0 ? prevStack[Math.floor(Math.random() * prevStack.length)] : null
+
+  const quizY = rateY + rateH + 24
+  const quizH = quizPoint ? 150 : 0
+  const footerH = 50
+  const h = quizY + quizH + footerH
+
   canvas.width = w
   canvas.height = h
   ctx.clearRect(0, 0, w, h)
@@ -376,7 +398,6 @@ async function shareResult() {
   ctx.fillRect(0, 0, w, h)
 
   // 顶部蓝色条
-  const topH = 100
   const topGrad = ctx.createLinearGradient(0, 0, w, topH)
   topGrad.addColorStop(0, '#3B82F6')
   topGrad.addColorStop(1, '#60A5FA')
@@ -395,17 +416,8 @@ async function shareResult() {
   ctx.fillText(dateStr, 40, 74)
 
   // 四个数据卡片
-  const s = sessionStats.value
-  const cards = [
-    { label: '总题数', value: String(s.total), accent: '#3B82F6' },
-    { label: '认识', value: String(s.known), accent: '#10B981' },
-    { label: '模糊', value: String(s.fuzzy), accent: '#F59E0B' },
-    { label: '忘记', value: String(s.forgot), accent: '#EF4444' }
-  ]
-  const cardW = 130, cardH = 100, cardGap = 12
   const cardsTotal = cards.length * cardW + (cards.length - 1) * cardGap
   const startX = (w - cardsTotal) / 2
-  const cardY = topH + 24
 
   for (let i = 0; i < cards.length; i++) {
     const x = startX + i * (cardW + cardGap)
@@ -438,12 +450,11 @@ async function shareResult() {
   }
 
   // 正确率区域
-  const rateY = cardY + cardH + 24
   ctx.fillStyle = '#FFFFFF'
   ctx.shadowColor = 'rgba(0,0,0,0.05)'
   ctx.shadowBlur = 10
   ctx.shadowOffsetY = 3
-  roundRect(ctx, 40, rateY, w - 80, 72, 14)
+  roundRect(ctx, 40, rateY, w - 80, rateH, 14)
   ctx.fill()
   ctx.shadowBlur = 0
   ctx.shadowOffsetY = 0
@@ -477,20 +488,49 @@ async function shareResult() {
     }
   }
 
+  // 抽题回顾区域（随机挑一道本次复习到的题）
+  let qrTargetUrl = 'https://bigzeng99.github.io/zhiji/'
+  let qrCaption = '扫码体验'
+  if (quizPoint) {
+    ctx.fillStyle = '#FFFFFF'
+    ctx.shadowColor = 'rgba(0,0,0,0.05)'
+    ctx.shadowBlur = 10
+    ctx.shadowOffsetY = 3
+    roundRect(ctx, 40, quizY, w - 80, quizH, 14)
+    ctx.fill()
+    ctx.shadowBlur = 0
+    ctx.shadowOffsetY = 0
+
+    ctx.fillStyle = '#6B7A92'
+    ctx.font = 'bold 14px -apple-system, PingFang SC, sans-serif'
+    ctx.fillText('💡 抽题回顾', 64, quizY + 30)
+
+    ctx.fillStyle = '#1A2233'
+    ctx.font = '15px -apple-system, PingFang SC, sans-serif'
+    const qLines = wrapCanvasText(ctx, stripMdSimple(quizPoint.question), w - 80 - 48 - 110, 2)
+    let qy = quizY + 58
+    for (const line of qLines) {
+      ctx.fillText(line, 64, qy)
+      qy += 22
+    }
+
+    qrTargetUrl = `https://bigzeng99.github.io/zhiji/#/share/${quizPoint.id}`
+    qrCaption = '扫码查看答案'
+  }
+
   // 底部署名
   ctx.fillStyle = '#9BA8BA'
   ctx.font = '12px -apple-system, PingFang SC, sans-serif'
   ctx.fillText('知记 — 科学记忆，高效学习', 40, h - 18)
 
   // QR code
-  const siteUrl = 'https://bigzeng99.github.io/zhiji/'
   try {
-    const qrDataUrl = await QRCode.toDataURL(siteUrl, { width: 80, margin: 1, color: { dark: '#3B82F6', light: '#ffffff' } })
+    const qrDataUrl = await QRCode.toDataURL(qrTargetUrl, { width: 80, margin: 1, color: { dark: '#3B82F6', light: '#ffffff' } })
     const qrImg = new Image()
     qrImg.onload = () => {
-      const qrSize = 64
+      const qrSize = quizPoint ? 90 : 64
       const qrX = w - 40 - qrSize
-      const qrY2 = h - 20 - qrSize
+      const qrY2 = quizPoint ? quizY + (quizH - qrSize) / 2 : h - 20 - qrSize
       ctx.fillStyle = '#fff'
       ctx.shadowColor = 'rgba(0,0,0,0.08)'
       ctx.shadowBlur = 8
@@ -502,7 +542,7 @@ async function shareResult() {
       ctx.fillStyle = '#9BA8BA'
       ctx.font = '11px -apple-system, PingFang SC, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText('扫码体验', qrX + qrSize / 2, h - 8)
+      ctx.fillText(qrCaption, qrX + qrSize / 2, qrY2 + qrSize + 16)
       ctx.textAlign = 'left'
 
       doShareCanvas(canvas)
@@ -511,6 +551,30 @@ async function shareResult() {
   } catch {
     doShareCanvas(canvas)
   }
+}
+
+function stripMdSimple(text: string): string {
+  return (text || '').replace(/[#*_~`>]/g, '').trim()
+}
+
+function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
+  const lines: string[] = []
+  let line = ''
+  for (const ch of text) {
+    const test = line + ch
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line)
+      line = ch
+      if (lines.length >= maxLines) break
+    } else {
+      line = test
+    }
+  }
+  if (lines.length < maxLines && line) lines.push(line)
+  if (lines.length === maxLines && text.length > lines.join('').length) {
+    lines[maxLines - 1] = lines[maxLines - 1].slice(0, -1) + '…'
+  }
+  return lines
 }
 
 function roundRectTop(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

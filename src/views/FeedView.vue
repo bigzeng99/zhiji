@@ -73,7 +73,7 @@
             <p class="card-short-answer"><RichTextSpan :rich="parseShortAnswer(p.answer)" /></p>
             <ul v-if="parseTopBullets(p.answer, 2).length" class="card-mini-bullets">
               <li v-for="(b, i) in parseTopBullets(p.answer, 2)" :key="i">
-                <strong v-if="b.term">{{ b.term }}</strong><template v-if="b.term">：</template>{{ truncateBullet(b.explanation.text) }}
+                <strong v-if="b.term">{{ b.term }}</strong><template v-if="b.term">：</template>{{ truncateBullet(b.explanation?.text ?? '') }}
               </li>
             </ul>
             <div class="card-bottom card-bottom-back">
@@ -103,7 +103,7 @@
             <p class="card-short-answer"><RichTextSpan :rich="parseShortAnswer(p.answer)" /></p>
             <ul v-if="parseTopBullets(p.answer, 2).length" class="card-mini-bullets">
               <li v-for="(b, i) in parseTopBullets(p.answer, 2)" :key="i">
-                <strong v-if="b.term">{{ b.term }}</strong><template v-if="b.term">：</template>{{ truncateBullet(b.explanation.text) }}
+                <strong v-if="b.term">{{ b.term }}</strong><template v-if="b.term">：</template>{{ truncateBullet(b.explanation?.text ?? '') }}
               </li>
             </ul>
             <div class="card-bottom card-bottom-back">
@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onActivated, onDeactivated, reactive } from 'vue'
+import { ref, computed, onMounted, onActivated, onDeactivated, onErrorCaptured, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { getApi } from '../apiSwitch'
 import SearchPanel from '../components/SearchPanel.vue'
@@ -164,6 +164,11 @@ function truncateBullet(text: string, max = 30): string {
   if (!text) return ''
   return text.length > max ? text.slice(0, max - 1) + '…' : text
 }
+
+onErrorCaptured((err) => {
+  console.error('[FeedView] render error caught:', err)
+  return false
+})
 
 const router = useRouter()
 const showSearch = ref(false)
@@ -452,7 +457,8 @@ async function loadData(showSkeleton = true) {
   if (showSkeleton) loading.value = true
   try {
   let subs: any[]
-  if (store.subjects.length > 0) {
+  const cacheLooksCloudShaped = store.subjects.length > 0 && store.subjects.every((s: any) => 'owner_id' in s)
+  if (store.subjects.length > 0 && (!auth.isLoggedIn.value || cacheLooksCloudShaped)) {
     subs = store.subjects
   } else {
     subs = await getApi().getSubjects()

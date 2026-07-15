@@ -76,6 +76,7 @@ export function parseTopBullets(answer: string, max = 2): Bullet[] {
   for (const s of standard.sections) {
     if (!s.bullets) continue
     for (const b of s.bullets) {
+      if (!b || typeof b.explanation !== 'object' || typeof b.explanation?.text !== 'string') continue
       bullets.push(b)
       if (bullets.length >= max) return bullets
     }
