@@ -92,6 +92,12 @@
 
       <!-- AI 生成 -->
       <div v-if="tab === 'ai'" class="ai-form">
+        <div class="field">
+          <label>科目</label>
+          <select v-model="manualSubjectId" class="field-select">
+            <option v-for="s in filteredSubjects" :key="s.id" :value="s.id">{{ s.icon }} {{ s.name }}</option>
+          </select>
+        </div>
         <div class="mode-chips">
           <span class="mode-chip" :class="{ active: aiMode === 'query' }" @click="aiMode = 'query'">提问生成</span>
           <span class="mode-chip" :class="{ active: aiMode === 'topic' }" @click="aiMode = 'topic'">主题添加</span>
@@ -169,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { getApi } from '../apiSwitch'
 import { auth } from '../auth'
 import { runBgUpload } from '../utils/bgUpload'
@@ -208,6 +214,11 @@ const filteredSubjects = computed(() => {
 })
 
 const manualSubjectId = ref(props.subjects[0]?.id || '')
+watch(filteredSubjects, (list) => {
+  if (!list.some(s => s.id === manualSubjectId.value)) {
+    manualSubjectId.value = list[0]?.id || ''
+  }
+}, { immediate: true })
 const manualForm = ref({ title: '', category: '', question: '', answer: '' })
 
 const batchInputRef = ref<HTMLInputElement | null>(null)

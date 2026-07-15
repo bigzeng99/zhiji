@@ -71,6 +71,13 @@ const db = new ZhijiDB()
 const today = () => new Date().toISOString().slice(0, 10)
 const now = () => new Date().toISOString().slice(0, 19).replace('T', ' ')
 
+// seed.json 里的知识点内容（answer 结构等）会不定期更新，但 initDB() 默认只在首次访问时整体写入，
+// 之后只补新增的知识点，不会刷新已有知识点的内容。这个版本号用来在内容更新时，
+// 给已经在本地建过库的用户也同步一次最新内容（只覆盖 title/category/question/answer，
+// 不动 ease_factor/repetitions/next_review 等个人复习进度字段）。
+const SEED_CONTENT_VERSION = 2
+const SEED_VERSION_KEY = 'zhiji_seed_content_version'
+
 export async function initDB() {
   const seed = await import('./data/seed.json')
   const todayStr = today()
@@ -94,6 +101,7 @@ export async function initDB() {
       }))
       await db.points.bulkAdd(points)
     })
+    localStorage.setItem(SEED_VERSION_KEY, String(SEED_CONTENT_VERSION))
   } else {
     await db.transaction('rw', db.subjects, db.points, async () => {
       for (const s of seed.subjects as Subject[]) {
@@ -112,6 +120,21 @@ export async function initDB() {
         }))
       if (newPoints.length > 0) await db.points.bulkAdd(newPoints)
     })
+
+    const localVersion = parseInt(localStorage.getItem(SEED_VERSION_KEY) || '1', 10)
+    if (localVersion < SEED_CONTENT_VERSION) {
+      await db.transaction('rw', db.points, async () => {
+        await Promise.all((seed.points as any[]).map(p =>
+          db.points.update(p.id, {
+            title: p.title,
+            category: p.category,
+            question: p.question,
+            answer: p.answer
+          })
+        ))
+      })
+      localStorage.setItem(SEED_VERSION_KEY, String(SEED_CONTENT_VERSION))
+    }
   }
 }
 
