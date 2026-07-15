@@ -2,9 +2,10 @@ import { supabase } from './supabase'
 import { auth } from './auth'
 import { sm2 } from './sm2'
 import { moderateContent } from './moderate'
+import { serverTodayString, serverNowISOString } from './utils/serverClock'
 
-const today = () => new Date().toISOString().slice(0, 10)
-const now = () => new Date().toISOString()
+const today = () => serverTodayString()
+const now = () => serverNowISOString()
 
 function uid() {
   return auth.currentUser.value!.id

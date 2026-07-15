@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { auth } from './auth'
+import { serverNowISOString } from './utils/serverClock'
 
 const queue: { event_type: string; event_data: any; created_at: string }[] = []
 let flushTimer: number | null = null
@@ -8,7 +9,7 @@ export function track(eventType: string, data: Record<string, any> = {}) {
   queue.push({
     event_type: eventType,
     event_data: data,
-    created_at: new Date().toISOString()
+    created_at: serverNowISOString()
   })
   if (!flushTimer) {
     flushTimer = window.setTimeout(flush, 5000)

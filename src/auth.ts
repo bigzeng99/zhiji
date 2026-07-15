@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { supabase } from './supabase'
+import { serverNowISOString } from './utils/serverClock'
 import type { User, Session } from '@supabase/supabase-js'
 
 const currentUser = ref<User | null>(null)
@@ -91,7 +92,7 @@ export const auth = {
     if (!currentUser.value) return
     const { data, error } = await supabase
       .from('profiles')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...updates, updated_at: serverNowISOString() })
       .eq('id', currentUser.value.id)
       .select()
       .single()
