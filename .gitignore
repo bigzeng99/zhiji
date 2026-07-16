@@ -22,3 +22,21 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Migration scripts & backups
+backup_*.json
+*_batches*.json
+*_pending*.json
+processed_ids.json
+workflow_success_ids.json
+audit_bad_ids*.json
+rewrite_full_log.txt
+prepare_batches*.py
+fetch_batch*.py
+patch_answer*.py
+apply_clone_reuse*.py
+audit_rewrite*.py
+rewrite_answers.py
+batch_patch.py
+skills/
+.clawhub/

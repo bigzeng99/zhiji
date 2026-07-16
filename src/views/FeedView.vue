@@ -78,7 +78,7 @@
             </ul>
             <div class="card-bottom card-bottom-back">
               <span class="card-tap-back">点击收起</span>
-              <button class="card-detail-btn" @click.stop="detailPoint = allPoints.find(x => x.id === p.id) || null">查看完整解释</button>
+              <button class="card-detail-btn" @click.stop="detailPoint = allPoints.find(x => x.id === p.id) || null">完整解释</button>
             </div>
           </div>
         </div>
@@ -108,7 +108,7 @@
             </ul>
             <div class="card-bottom card-bottom-back">
               <span class="card-tap-back">点击收起</span>
-              <button class="card-detail-btn" @click.stop="detailPoint = allPoints.find(x => x.id === p.id) || null">查看完整解释</button>
+              <button class="card-detail-btn" @click.stop="detailPoint = allPoints.find(x => x.id === p.id) || null">完整解释</button>
             </div>
           </div>
         </div>
