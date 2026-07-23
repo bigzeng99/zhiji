@@ -40,12 +40,16 @@ export const auth = {
     loading.value = false
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
-      currentSession.value = session
-      currentUser.value = session?.user ?? null
-      if (session?.user) {
-        await this.loadProfile()
-      } else {
+      if (_event === 'SIGNED_OUT') {
+        currentSession.value = null
+        currentUser.value = null
         profile.value = null
+        return
+      }
+      if (session?.user) {
+        currentSession.value = session
+        currentUser.value = session.user
+        await this.loadProfile()
       }
     })
   },

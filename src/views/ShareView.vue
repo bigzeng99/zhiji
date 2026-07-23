@@ -59,10 +59,39 @@ const subject = ref<{ name: string; icon: string; color: string }>({ name: '', i
 
 const questionHtml = computed(() => point.value ? renderMd(point.value.question) : '')
 
-onMounted(async () => {
-  const pointId = route.params.pointId as string
-  if (!pointId) { error.value = true; loading.value = false; return }
+async function tryLoadFromSeed(pointId: string): Promise<boolean> {
+  try {
+    const seed = await import('../data/seed.json')
+    const pt = (seed.points as any[]).find(p => p.id === pointId)
+    if (!pt) return false
+    point.value = pt
+    const sub = (seed.subjects as any[]).find(s => s.id === pt.subject_id)
+    if (sub) subject.value = { name: sub.name, icon: sub.icon, color: sub.color }
+    return true
+  } catch {
+    return false
+  }
+}
 
+async function tryLoadFromIndexedDB(pointId: string): Promise<boolean> {
+  try {
+    const { initDB } = await import('../db')
+    await initDB()
+    const { api } = await import('../db')
+    const allPoints = await api.getAllActivePoints()
+    const pt = allPoints.find((p: any) => p.id === pointId)
+    if (!pt) return false
+    point.value = pt
+    const subs = await api.getSubjects()
+    const sub = subs.find((s: any) => s.id === pt.subject_id)
+    if (sub) subject.value = { name: sub.name, icon: sub.icon, color: sub.color }
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function tryLoadFromSupabase(pointId: string): Promise<boolean> {
   try {
     const { data: pt } = await supabase
       .from('points')
@@ -70,20 +99,30 @@ onMounted(async () => {
       .eq('id', pointId)
       .eq('status', 'active')
       .single()
-
-    if (!pt) { error.value = true; loading.value = false; return }
+    if (!pt) return false
     point.value = pt
-
     const { data: sub } = await supabase
       .from('subjects')
       .select('name, icon, color')
       .eq('id', pt.subject_id)
       .single()
-
     if (sub) subject.value = sub
+    return true
   } catch {
-    error.value = true
+    return false
   }
+}
+
+onMounted(async () => {
+  const pointId = route.params.pointId as string
+  if (!pointId) { error.value = true; loading.value = false; return }
+
+  const found =
+    await tryLoadFromSeed(pointId) ||
+    await tryLoadFromIndexedDB(pointId) ||
+    await tryLoadFromSupabase(pointId)
+
+  if (!found) error.value = true
   loading.value = false
 })
 </script>

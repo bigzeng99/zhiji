@@ -7,6 +7,7 @@ const ReviewView = () => import('../views/ReviewView.vue')
 const LibraryView = () => import('../views/LibraryView.vue')
 const ProfileView = () => import('../views/ProfileView.vue')
 const ShareView = () => import('../views/ShareView.vue')
+const KnowledgeMapView = () => import('../views/KnowledgeMapView.vue')
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -17,6 +18,7 @@ const router = createRouter({
     { path: '/feed', name: 'feed', component: FeedView },
     { path: '/library', name: 'library', component: LibraryView },
     { path: '/profile', name: 'profile', component: ProfileView },
+    { path: '/map/:subjectId', name: 'map', component: KnowledgeMapView },
     { path: '/share/:pointId', name: 'share', component: ShareView, meta: { public: true } },
   ]
 })

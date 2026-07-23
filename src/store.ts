@@ -36,6 +36,8 @@ export const store = reactive({
   selectedSubjects: JSON.parse(localStorage.getItem('zhiji_selected_subjects') || '[]') as string[],
   overview: { due_today: 0, total_points: 0, learned_points: 0, new_today: 0, reviewed_today: 0 },
   loading: false,
+  syncStatus: 'idle' as 'idle' | 'syncing' | 'done' | 'error',
+  lastSyncAt: 0,
   _subjectsLoadedAt: 0,
   _overviewLoadedAt: 0,
   _teamsLoadedAt: 0,

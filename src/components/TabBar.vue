@@ -6,7 +6,7 @@
       :to="tab.path"
       class="tab-item"
       :class="{ active: $route.path === tab.path }"
-      @click.native="onTabClick(tab.path)"
+      @click="onTabClick(tab.path)"
     >
       <div class="tab-icon-wrap">
         <span class="tab-icon" v-html="tab.icon"></span>
@@ -87,6 +87,10 @@ const tabs = [
   border-top: 1px solid var(--border-color);
   padding: 8px 0 env(safe-area-inset-bottom, 10px);
   z-index: 100;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .tab-item {
@@ -96,8 +100,11 @@ const tabs = [
   text-decoration: none;
   color: var(--gray-400);
   font-size: 11px;
-  padding: 4px 12px;
+  padding: 6px 16px;
   transition: color 0.2s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
 .tab-item.active {

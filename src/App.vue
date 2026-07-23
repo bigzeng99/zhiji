@@ -1,11 +1,11 @@
 <template>
   <div class="app-shell">
     <router-view v-slot="{ Component }">
-      <keep-alive :exclude="['ReviewView']">
+      <keep-alive :exclude="['ReviewView', 'KnowledgeMapView']">
         <component :is="Component" />
       </keep-alive>
     </router-view>
-    <TabBar v-if="!isAuthPage && !isSharePage" />
+    <TabBar v-if="!isAuthPage && !isSharePage && !isMapPage" />
 
     <KeywordPopover />
 
@@ -52,6 +52,7 @@ import { bgUpload } from './utils/bgUpload'
 const route = useRoute()
 const isAuthPage = computed(() => route.path === '/auth')
 const isSharePage = computed(() => route.path.startsWith('/share'))
+const isMapPage = computed(() => route.path.startsWith('/map'))
 
 const showInstallTip = ref(false)
 const isIOS = ref(false)

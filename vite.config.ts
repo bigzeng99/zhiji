@@ -46,11 +46,6 @@ export default defineConfig({
             urlPattern: /pdf\.worker.*\.mjs$/,
             handler: 'CacheFirst',
             options: { cacheName: 'pdf-worker', expiration: { maxEntries: 2, maxAgeSeconds: 30 * 24 * 60 * 60 } }
-          },
-          {
-            urlPattern: /^https:\/\/joqppofbsptljxdhxcpe\.supabase\.co\/rest\/v1\//,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'supabase-api', expiration: { maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 }, networkTimeoutSeconds: 5 }
           }
         ]
       }
